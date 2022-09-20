@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
 	while (1)
 	{
 		int clnt_fd;
-		if ((clnt_fd = accept(listen_fd, (struct sockaddr *restrict)&clnt_addr, &clnt_addr_sz)) == -1)
+		if ((clnt_fd = accept(listen_fd, (struct sockaddr *)&clnt_addr, &clnt_addr_sz)) == -1)
 		{ error_handling("accept() error"); }
 
 		fprintf(stdout, "========== Connection Acctped ==========\n");
