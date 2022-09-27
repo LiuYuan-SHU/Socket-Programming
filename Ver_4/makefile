@@ -1,12 +1,14 @@
-all : server client
+all : client server
+
+client : ./client.c 
+	gcc -DSLEEP -o client client.c
+	gcc -o client_no_sleep client.c
 
 server : ./server.c
-	gcc -Wall -o server server.c
+	gcc -o server server.c
 
-client : ./client.c
-	gcc -Wall -o client client.c
-
-clean : 
-	-rm -rf server ./server.dSYM
-	-rm -rf client ./client.dSYM
+clean:
+	-rm client client_no_sleep
+	-rm server
 	-rm ./logs/*
+	-rm *_server

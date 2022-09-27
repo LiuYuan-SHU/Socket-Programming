@@ -4,13 +4,18 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <netdb.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
 #include <errno.h>
 #include <time.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <arpa/inet.h>
 
 #define MAX_SIZE 1024
+#define BUF_SIZE 100
+#define HED_SIZE 100
+#define TOL_SIZE BUF_SIZE+HED_SIZE
+#define PLACE_HOLDER 1
 
 void error_handling(char* message);
 void service(int serv_fd);
@@ -99,7 +104,6 @@ void service(int serv_fd)
 	{
 		char buffer[1024];
 	
-		// 与服务端通信，发送一个报文后等待回复，然后再发下一个报文
 		while (1)
 		{
 			int iret;
@@ -110,7 +114,8 @@ void service(int serv_fd)
 				printf("iret = %d\n", iret);
 				break;
 			}
-			printf("server: %s", buffer);
+			printf("server: %s\n", buffer);
+			fflush(stdout);
 		}
 	}
 }
@@ -118,7 +123,7 @@ void service(int serv_fd)
 void send_file(int serv_fd)
 {
 	int iret;
-	char file_name[MAX_SIZE], buffer[100];
+	char file_name[MAX_SIZE], buffer[BUF_SIZE + HED_SIZE];
 	FILE *file_ptr = NULL;
 	FILE *log_ptr = NULL; 
 
@@ -127,6 +132,7 @@ void send_file(int serv_fd)
 	time_t cur_time = time(NULL);
 	strcpy(log_name, "logs/log_");	
 	strncat(log_name, ctime(&cur_time) + 11, 8);
+	strcat(log_name, ".txt");
 	log_ptr = fopen(log_name, "w");	
 
 	// get file name
@@ -145,31 +151,46 @@ void send_file(int serv_fd)
 		printf("file %s opened\n", file_name);
 		size_t count = 0;
 		size_t sent_size = 0;
-		size_t header_size = 0;
+
+		// get the total size of file
+		struct stat file_stat;
+		stat(file_name, &file_stat);	
+		const size_t file_size = file_stat.st_size;
 
 		int flag = 1;
 		while (flag)
 		{
-			memset(buffer, 0, sizeof(buffer));
+			memset(buffer, PLACE_HOLDER, sizeof(buffer));
+
+			// write header
 			count++;
-			sprintf(buffer, "package %zu:\n", count);	
-			header_size = strlen(buffer);
-			sent_size = fread(buffer + header_size, sizeof(char), 100 - header_size - 1, file_ptr);
+			int offset = sprintf(buffer, "FILE: %s - package %zu of total %zu:\n", file_name, count, (file_size % BUF_SIZE) == 0 ? (file_size / BUF_SIZE) : (file_size / BUF_SIZE + 1));	
+			// write 0 into space
+			buffer[offset] = PLACE_HOLDER;
+
+			sent_size = fread(buffer + HED_SIZE, sizeof(char), BUF_SIZE - 1, file_ptr);
 			if (sent_size > 0)
 			{
-				fprintf(log_ptr, "header_size: %zu\n", header_size);
 				fprintf(log_ptr, "buffer:\n%s\n", buffer);
 				fprintf(log_ptr, "===============================\n");
-				if ((iret = send(serv_fd, buffer, 100, 0)) <= 0)
+				if ((iret = send(serv_fd, buffer, TOL_SIZE, 0)) <= 0)
 				{
 					printf("iret = %d\n", iret);
 					flag = 0;
 				}
-				usleep(100000);
+				printf("FILE: %s - package %-5zu sent\n",file_name, count);
+#ifdef SLEEP
+	usleep(100000);
+#endif
 			}
 			else
 			{
+				// end loop
 				flag = 0;
+
+				// send tail to server
+				sprintf(buffer,  "FILE: %s - package %d\n", file_name, (((int)count) - 1) * -1);
+				send(serv_fd, buffer, TOL_SIZE, 0);
 			}
 		}
 	}
