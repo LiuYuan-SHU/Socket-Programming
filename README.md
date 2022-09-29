@@ -27,4 +27,19 @@ multiple processes
 
 big file transport, breakpoint check
 
+```mermaid
+flowchart TD;
+subgraph client
+	create[create connection with server] --> 
+	cservice[function <b>service</b>] --> send & receive
+	send --> file[send file]
+end
 
+subgraph server
+	main --> 
+	listen[listen connection] --fork--> 
+	accept[accept connection] & listen 
+	accept --> sservice[function service] --fork--> my_send & my_recv
+	my_recv --> save_file
+end
+```
